@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SSVEP-BCI Communication Interface</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Critical flicker styles — no Tailwind indirection for performance */
+    .stimulus-block {
+      will-change: background-color;
+      contain: strict;
+    }
+    .stimulus-on  { background-color: #FFD600 !important; }
+    .stimulus-off { background-color: #000000 !important; }
+    .sync-on  { background-color: #FFFFFF !important; }
+    .sync-off { background-color: #000000 !important; }
+    body.patient-view { background: #000000; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+
+  <!-- ==================== SETUP MENU ==================== -->
+  <div id="setup-view" class="max-w-2xl mx-auto p-6">
+    <h1 class="text-2xl font-bold mb-1">SSVEP-BCI Configuration</h1>
+    <p class="text-gray-400 text-sm mb-6">Caretaker setup — configure before presenting to patient.</p>
+
+    <!-- Refresh Rate Detection -->
+    <div id="refresh-rate-banner" class="mb-6 p-4 rounded-lg bg-gray-800 border border-gray-700">
+      <div class="flex items-center justify-between">
+        <div>
+          <span class="text-sm text-gray-400">Detected Refresh Rate</span>
+          <p id="detected-hz" class="text-xl font-mono font-bold text-cyan-400">Detecting…</p>
+        </div>
+        <div>
+          <span class="text-sm text-gray-400">Valid Frequencies</span>
+          <p id="valid-freqs" class="text-sm font-mono text-green-400">—</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Question -->
+    <label class="block mb-1 text-sm font-medium text-gray-300">Question for Patient</label>
+    <input id="question-input" type="text" placeholder="e.g. Are you in pain?"
+      class="w-full mb-4 p-3 rounded-lg bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+
+    <!-- Number of Options -->
+    <label class="block mb-1 text-sm font-medium text-gray-300">Number of Options</label>
+    <select id="num-options" class="w-full mb-4 p-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
+      <option value="2">2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+    </select>
+
+    <!-- Dynamic Option Rows -->
+    <div id="options-container" class="space-y-3 mb-6"></div>
+
+    <!-- Sync Square Toggle -->
+    <label class="flex items-center gap-3 mb-6 cursor-pointer select-none">
+      <input id="sync-square-toggle" type="checkbox" class="w-5 h-5 accent-cyan-500" />
+      <span class="text-sm text-gray-300">Enable photodiode sync square (flashes with first stimulus)</span>
+    </label>
+
+    <!-- Start Button -->
+    <button id="start-btn"
+      class="w-full py-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-lg transition disabled:opacity-40 disabled:cursor-not-allowed"
+      disabled>
+      Start Stimulus
+    </button>
+    <p id="validation-msg" class="mt-2 text-sm text-red-400 hidden"></p>
+  </div>
+
+  <!-- ==================== PATIENT VIEW ==================== -->
+  <div id="patient-view" class="hidden fixed inset-0 flex flex-col" style="background:#000">
+    <!-- Top bar -->
+    <div class="flex items-center justify-between px-6 py-3 bg-black/80 backdrop-blur z-10">
+      <button id="back-btn" class="text-sm text-gray-400 hover:text-white transition">← Setup</button>
+      <span id="patient-question" class="text-lg font-semibold text-white text-center flex-1 mx-4 truncate"></span>
+      <div class="flex items-center gap-3">
+        <button id="play-pause-btn"
+          class="px-5 py-2 rounded-lg font-semibold text-sm transition bg-green-600 hover:bg-green-500 text-white">
+          ▶ Play
+        </button>
+        <button id="download-log-btn"
+          class="px-4 py-2 rounded-lg font-semibold text-sm transition bg-gray-700 hover:bg-gray-600 text-gray-200">
+          ↓ Log
+        </button>
+      </div>
+    </div>
+
+    <!-- Stimulus Area -->
+    <div id="stimulus-area" class="flex-1 grid p-4 gap-4" style="min-height:0"></div>
+
+    <!-- Sync Square (bottom-left corner, 40x40px) -->
+    <div id="sync-square" class="hidden fixed bottom-0 left-0 w-10 h-10 sync-off" style="z-index:50"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
