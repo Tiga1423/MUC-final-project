@@ -1,6 +1,6 @@
 // ============================================================
 //  SSVEP-BCI Communication Interface
-//  Frame-accurate flickering with high-resolution timestamping
+//  Frame-accurate flickering with Unix epoch timestamping
 // ============================================================
 
 (() => {
@@ -22,6 +22,13 @@
 
   // Config snapshot written on start
   let currentConfig = null;
+
+  // ── Frame-timing diagnostics ──────────────────────────────
+  let diagLastRAFTime = null;       // previous rAF timestamp (performance.now based)
+  let diagFrameDeltas = [];         // recent frame deltas for rolling stats
+  let diagDroppedFrames = 0;        // frames that took > 1.5× expected interval
+  let diagTotalFrames = 0;
+  const DIAG_REPORT_INTERVAL = 300; // log stats every N frames (~5 s at 60 Hz)
 
   // ── DOM refs ───────────────────────────────────────────────
   const $ = (sel) => document.querySelector(sel);
@@ -198,9 +205,36 @@
   }
 
   // ── Flicker Loop ───────────────────────────────────────────
-  function flickerLoop() {
-    const ts = performance.now();
+  function flickerLoop(rafTimestamp) {
+    const ts = Date.now();
     globalFrameCount++;
+
+    // ── Frame-timing diagnostics ──
+    if (diagLastRAFTime !== null) {
+      const delta = rafTimestamp - diagLastRAFTime;
+      diagFrameDeltas.push(delta);
+      diagTotalFrames++;
+      const expectedInterval = 1000 / detectedRefreshRate;
+      if (delta > expectedInterval * 1.5) {
+        diagDroppedFrames++;
+        console.warn(`[SSVEP] Dropped frame #${globalFrameCount}: delta=${delta.toFixed(2)}ms (expected ~${expectedInterval.toFixed(1)}ms)`);
+      }
+      if (diagFrameDeltas.length >= DIAG_REPORT_INTERVAL) {
+        const sorted = [...diagFrameDeltas].sort((a, b) => a - b);
+        const min = sorted[0].toFixed(2);
+        const max = sorted[sorted.length - 1].toFixed(2);
+        const median = sorted[Math.floor(sorted.length / 2)].toFixed(2);
+        const mean = (diagFrameDeltas.reduce((a, b) => a + b, 0) / diagFrameDeltas.length).toFixed(2);
+        const jitter = (Math.sqrt(diagFrameDeltas.reduce((sum, d) => sum + (d - mean) ** 2, 0) / diagFrameDeltas.length)).toFixed(2);
+        console.log(
+          `[SSVEP] Frame stats (last ${DIAG_REPORT_INTERVAL} frames): ` +
+          `min=${min}ms  median=${median}ms  mean=${mean}ms  max=${max}ms  jitter(σ)=${jitter}ms  ` +
+          `dropped=${diagDroppedFrames}/${diagTotalFrames} total`
+        );
+        diagFrameDeltas = [];
+      }
+    }
+    diagLastRAFTime = rafTimestamp;
 
     stimuli.forEach((s, idx) => {
       s.counter++;
@@ -236,9 +270,13 @@
     if (isRunning) return;
     isRunning = true;
     globalFrameCount = 0;
+    diagLastRAFTime = null;
+    diagFrameDeltas = [];
+    diagDroppedFrames = 0;
+    diagTotalFrames = 0;
     // Reset per-stimulus counters
     stimuli.forEach(s => { s.counter = 0; s.isOn = false; });
-    logEvent("play", { timestamp: performance.now() });
+    logEvent("play", { timestamp: Date.now() });
     playPauseBtn.textContent = "⏸ Pause";
     playPauseBtn.classList.replace("bg-green-600", "bg-red-600");
     playPauseBtn.classList.replace("hover:bg-green-500", "hover:bg-red-500");
@@ -250,7 +288,7 @@
     isRunning = false;
     cancelAnimationFrame(rafId);
     rafId = null;
-    logEvent("pause", { timestamp: performance.now() });
+    logEvent("pause", { timestamp: Date.now() });
     playPauseBtn.textContent = "▶ Play";
     playPauseBtn.classList.replace("bg-red-600", "bg-green-600");
     playPauseBtn.classList.replace("hover:bg-red-500", "hover:bg-green-500");
@@ -267,8 +305,7 @@
   function logEvent(type, data = {}) {
     eventLog.push({
       type,
-      timestamp: performance.now(),
-      wallclock: new Date().toISOString(),
+      timestamp: Date.now(),
       ...data,
     });
   }
